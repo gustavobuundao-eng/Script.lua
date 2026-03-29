@@ -1,171 +1,114 @@
--- =========================
--- DASH ATRÁS DO ALVO (FIX REAL)
--- =========================
+-- evita duplicação
+if _G.AIM_PREDICT_ATIVO then return end
+_G.AIM_PREDICT_ATIVO = true
 
 local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -- CONFIG
-local FOV_SELECT = 10
-local DISTANCIA_TELEPORTE = 5
-local DASH_SPEED = 2500
+local VELOCIDADE_PROJETIL = 300
+local FOV = 8 -- 🔥 ultra preciso
 
--- VARIÁVEIS
-local selecting = false
-local selectedTarget = nil
-local highlight = nil
-local rightMouseHeld = false
-local dashing = false
+local aiming = false
+local lockedTarget = nil
 
--- FUNÇÃO PLAYER
-local function getCharacter()
-	return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-end
-
--- PEGAR ALVO
-local function getTargetFromCrosshair()
+-- 🎯 pegar alvo baseado no centro da tela
+function getTargetFromCrosshair()
 	local closest = nil
-	local smallestAngle = FOV_SELECT
+	local smallestAngle = FOV
 
 	for _, v in pairs(Players:GetPlayers()) do
-		if v == LocalPlayer then continue end
-		
-		local char = v.Character
-		if not char then continue end
-		
-		local hrp = char:FindFirstChild("HumanoidRootPart")
-		local hum = char:FindFirstChildOfClass("Humanoid")
-		
-		if not hrp or not hum or hum.Health <= 0 then continue end
-		
-		local direction = (hrp.Position - Camera.CFrame.Position).Unit
-		local dot = Camera.CFrame.LookVector:Dot(direction)
-		dot = math.clamp(dot, -1, 1)
-		
-		local angle = math.deg(math.acos(dot))
-		
-		if angle < smallestAngle then
-			smallestAngle = angle
-			closest = v
+		if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+			
+			local hrp = v.Character.HumanoidRootPart
+			local pos = hrp.Position
+			
+			local direction = (pos - Camera.CFrame.Position).Unit
+			local dot = Camera.CFrame.LookVector:Dot(direction)
+			local angle = math.deg(math.acos(dot))
+			
+			if angle < smallestAngle then
+				smallestAngle = angle
+				closest = v
+			end
 		end
 	end
 
 	return closest
 end
 
--- HIGHLIGHT
-local function createHighlight(target)
-	if highlight then highlight:Destroy() end
+-- 🚀 PREDICT INTELIGENTE (corrigido pra qualquer distância)
+function getPredictedPosition(target)
+	if not target.Character then return nil end
 	
-	if not target or not target.Character then return end
+	local hrp = target.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return nil end
 	
-	highlight = Instance.new("Highlight")
-	highlight.Adornee = target.Character
-	highlight.FillColor = Color3.fromRGB(255,0,0)
-	highlight.FillTransparency = 0.5
-	highlight.OutlineTransparency = 0
-	highlight.Parent = target.Character
+	local pos = hrp.Position
+	local vel = hrp.AssemblyLinearVelocity
+
+	local distancia = (pos - Camera.CFrame.Position).Magnitude
+	
+	-- tempo base
+	local tempoBase = distancia / VELOCIDADE_PROJETIL
+	
+	-- 🔥 ajuste por distância
+	local multiplier
+	if distancia < 50 then
+		multiplier = 0.4
+	elseif distancia < 150 then
+		multiplier = 0.6
+	else
+		multiplier = 0.3
+	end
+	
+	local tempo = tempoBase * multiplier
+	
+	-- 🔥 limite máximo pra não bugar longe
+	local MAX_TEMPO = 0.35
+	tempo = math.min(tempo, MAX_TEMPO)
+	
+	return pos + vel * tempo
 end
 
-local function removeHighlight()
-	if highlight then
-		highlight:Destroy()
-		highlight = nil
-	end
-end
-
--- 🔥 DASH REAL (ATÉ CHEGAR)
-local function dashBehind(target)
-
-	if dashing then return end
-	dashing = true
-	
-	local char = getCharacter()
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	local targetHRP = target.Character:FindFirstChild("HumanoidRootPart")
-	
-	if not hrp or not targetHRP then
-		dashing = false
-		return
-	end
-	
-	local bodyVel = Instance.new("BodyVelocity")
-	bodyVel.MaxForce = Vector3.new(1e9,1e9,1e9)
-	bodyVel.Parent = hrp
-	
-	while dashing do
-		
-		if not targetHRP.Parent then break end
-		
-		local look = targetHRP.CFrame.LookVector
-		local goalPos = targetHRP.Position - (look * DISTANCIA_TELEPORTE)
-		
-		local direction = (goalPos - hrp.Position)
-		
-		if direction.Magnitude < 3 then
-			break
-		end
-		
-		bodyVel.Velocity = direction.Unit * DASH_SPEED
-		
-		RunService.RenderStepped:Wait()
-	end
-	
-	bodyVel:Destroy()
-	
-	-- ajuste final
-	if targetHRP then
-		local look = targetHRP.CFrame.LookVector
-		local goalPos = targetHRP.Position - (look * DISTANCIA_TELEPORTE)
-		hrp.CFrame = CFrame.new(goalPos, targetHRP.Position)
-	end
-	
-	dashing = false
-end
-
--- INPUT
-UIS.InputBegan:Connect(function(input, g)
-	if g then return end
-	
-	if input.KeyCode == Enum.KeyCode.One then
-		selecting = true
-	end
+-- 🖱️ botão direito
+UIS.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
 	
 	if input.UserInputType == Enum.UserInputType.MouseButton2 then
-		rightMouseHeld = true
-	end
-	
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		if selecting and selectedTarget and rightMouseHeld then
-			
-			dashBehind(selectedTarget)
-			
-			selecting = false
-			selectedTarget = nil
-			removeHighlight()
-			rightMouseHeld = false
+		
+		local target = getTargetFromCrosshair()
+		
+		-- 🎯 só ativa se já estiver mirando
+		if target then
+			aiming = true
+			lockedTarget = target
+		else
+			aiming = false
+			lockedTarget = nil
 		end
 	end
 end)
 
 UIS.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton2 then
-		rightMouseHeld = false
+		aiming = false
+		lockedTarget = nil
 	end
 end)
 
--- LOOP
+-- 🔥 LOOP PRINCIPAL (LOCK BRUTAL)
 RunService.RenderStepped:Connect(function()
-	if not selecting then return end
+	if not aiming then return end
+	if not lockedTarget then return end
 	
-	local target = getTargetFromCrosshair()
+	local predictedPos = getPredictedPosition(lockedTarget)
+	if not predictedPos then return end
 	
-	if target ~= selectedTarget then
-		selectedTarget = target
-		createHighlight(target)
-	end
+	-- 🎯 mira 100% grudada no predict
+	Camera.CFrame = CFrame.new(Camera.CFrame.Position, predictedPos)
 end)
