@@ -44,6 +44,11 @@ local ESP_ON = ESP_ENABLED
 
 local primeiroPuloFeito = false
 
+-- 🔥 NOVO: controle double shift
+local superPuloAtivo = false
+local ultimoShift = 0
+local TEMPO_DOUBLE = 0.3
+
 -- =========================
 -- FUNÇÕES AUX
 -- =========================
@@ -222,6 +227,8 @@ Players.PlayerAdded:Connect(setup)
 -- PULO MANUAL
 -- =========================
 local function aplicarPuloManual()
+	if not superPuloAtivo then return end
+
 	local char = LocalPlayer.Character
 	if not char then return end
 
@@ -326,7 +333,16 @@ UIS.InputBegan:Connect(function(i,g)
 	end
 
 	if i.KeyCode == Enum.KeyCode.LeftShift then
+		
 		speed = _G.FLY_SHIFT_SPEED
+		
+		local tempoAtual = tick()
+		if tempoAtual - ultimoShift <= TEMPO_DOUBLE then
+			superPuloAtivo = not superPuloAtivo
+			print("Super Pulo:", superPuloAtivo and "ATIVADO" or "DESATIVADO")
+		end
+		
+		ultimoShift = tempoAtual
 	end
 
 	if i.KeyCode == FLY_KEY then
@@ -359,14 +375,12 @@ local UIS = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- CONFIG
 local VELOCIDADE_PROJETIL = 300
-local FOV = 8 -- 🔥 ultra preciso
+local FOV = 8
 
 local aiming = false
 local lockedTarget = nil
 
--- 🎯 pegar alvo baseado no centro da tela
 function getTargetFromCrosshair()
 	local closest = nil
 	local smallestAngle = FOV
@@ -391,7 +405,6 @@ function getTargetFromCrosshair()
 	return closest
 end
 
--- 🚀 PREDICT INTELIGENTE (corrigido pra qualquer distância)
 function getPredictedPosition(target)
 	if not target.Character then return nil end
 	
@@ -403,10 +416,8 @@ function getPredictedPosition(target)
 
 	local distancia = (pos - Camera.CFrame.Position).Magnitude
 	
-	-- tempo base
 	local tempoBase = distancia / VELOCIDADE_PROJETIL
 	
-	-- 🔥 ajuste por distância
 	local multiplier
 	if distancia < 50 then
 		multiplier = 0.4
@@ -418,14 +429,12 @@ function getPredictedPosition(target)
 	
 	local tempo = tempoBase * multiplier
 	
-	-- 🔥 limite máximo pra não bugar longe
 	local MAX_TEMPO = 0.35
 	tempo = math.min(tempo, MAX_TEMPO)
 	
 	return pos + vel * tempo
 end
 
--- 🖱️ botão direito
 UIS.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	
@@ -433,7 +442,6 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
 		
 		local target = getTargetFromCrosshair()
 		
-		-- 🎯 só ativa se já estiver mirando
 		if target then
 			aiming = true
 			lockedTarget = target
@@ -451,7 +459,6 @@ UIS.InputEnded:Connect(function(input)
 	end
 end)
 
--- 🔥 LOOP PRINCIPAL (LOCK BRUTAL)
 RunService.RenderStepped:Connect(function()
 	if not aiming then return end
 	if not lockedTarget then return end
@@ -459,6 +466,5 @@ RunService.RenderStepped:Connect(function()
 	local predictedPos = getPredictedPosition(lockedTarget)
 	if not predictedPos then return end
 	
-	-- 🎯 mira 100% grudada no predict
 	Camera.CFrame = CFrame.new(Camera.CFrame.Position, predictedPos)
 end)
