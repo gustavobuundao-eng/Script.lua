@@ -1,8 +1,8 @@
 -- =========================
--- TELEPORT SYSTEM (FINAL FIX)
+-- TELEPORT SYSTEM (FIXADO)
 -- =========================
 
-local TP_FOV = 12
+local TP_FOV = 12 -- aumentei pra funcionar melhor
 local TP_DISTANCIA = 5
 
 local tp_selecting = false
@@ -10,7 +10,6 @@ local tp_target = nil
 local tp_highlight = nil
 local tp_rightMouseHeld = false
 
--- TARGET
 local function tp_getTarget()
 	local closest = nil
 	local smallestAngle = TP_FOV
@@ -40,8 +39,7 @@ local function tp_getTarget()
 	return closest
 end
 
--- HIGHLIGHT
-local function tp_setHighlight(plr)
+local function tp_createHighlight(plr)
 	if tp_highlight then
 		tp_highlight:Destroy()
 		tp_highlight = nil
@@ -70,8 +68,7 @@ local function tp_disable()
 	tp_rightMouseHeld = false
 end
 
--- TELEPORT
-local function tp_teleport()
+local function tp_teleportBehind()
 	if not tp_selecting then return end
 	if not tp_target or not tp_target.Character then return end
 
@@ -88,39 +85,39 @@ local function tp_teleport()
 	tp_disable()
 end
 
--- INPUT LIMPO
-UIS.InputBegan:Connect(function(input, g)
+-- INPUT EXTRA (NÃO REMOVE O SEU)
+UIS.InputBegan:Connect(function(i,g)
 	if g then return end
 
-	if input.KeyCode == Enum.KeyCode.One then
+	if i.KeyCode == Enum.KeyCode.One then
 		tp_selecting = true
 	end
 
-	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+	if i.UserInputType == Enum.UserInputType.MouseButton2 then
 		tp_rightMouseHeld = true
 	end
 
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then
 		if tp_selecting and tp_rightMouseHeld then
-			tp_teleport()
+			tp_teleportBehind()
 		end
 	end
 end)
 
-UIS.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+UIS.InputEnded:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton2 then
 		tp_rightMouseHeld = false
 	end
 end)
 
 -- LOOP ISOLADO (NÃO CONFLITA)
-RunService:BindToRenderStep("TP_SYSTEM", Enum.RenderPriority.Camera.Value + 1, function()
+RunService.RenderStepped:Connect(function()
 	if not tp_selecting then return end
 
 	local target = tp_getTarget()
 
 	if target ~= tp_target then
 		tp_target = target
-		tp_setHighlight(target)
+		tp_createHighlight(target)
 	end
 end)
