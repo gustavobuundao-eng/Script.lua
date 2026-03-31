@@ -96,11 +96,27 @@ local function startFly()
 	end)
 end
 
--- =====================================================
--- 🟥 TELEPORT SYSTEM (PARTE IMPORTANTE)
--- =====================================================
+-- =========================
+-- TELEPORT SYSTEM (COMPATÍVEL)
+-- =========================
 
--- encontrar alvo pela mira
+local TP_FOV = 12
+local TP_DISTANCIA = 5
+
+local tp_ativo = false
+local tp_alvo = nil
+local tp_highlight = nil
+
+-- ativar com tecla 1
+UIS.InputBegan:Connect(function(input, g)
+	if g then return end
+	
+	if input.KeyCode == Enum.KeyCode.One then
+		tp_ativo = true
+	end
+end)
+
+-- pegar alvo pela mira
 local function tp_getAlvo()
 	local melhor = nil
 	local menorAngulo = TP_FOV
@@ -132,7 +148,10 @@ end
 
 -- highlight
 local function tp_setHighlight(plr)
-	if tp_highlight then tp_highlight:Destroy() end
+	if tp_highlight then
+		tp_highlight:Destroy()
+		tp_highlight = nil
+	end
 	
 	if not plr or not plr.Character then return end
 	
@@ -145,7 +164,7 @@ local function tp_setHighlight(plr)
 	tp_highlight.Parent = workspace
 end
 
--- desativar sistema
+-- desativar
 local function tp_desativar()
 	tp_ativo = false
 	tp_alvo = nil
@@ -156,7 +175,7 @@ local function tp_desativar()
 	end
 end
 
--- teleporte atrás
+-- teleporte
 local function tp_teleportar()
 	if not tp_alvo or not tp_alvo.Character then return end
 	
@@ -169,63 +188,28 @@ local function tp_teleportar()
 	local pos = targetHRP.Position - (look * TP_DISTANCIA)
 	
 	hrp.CFrame = CFrame.new(pos, targetHRP.Position)
-	
-	-- one shot
+
 	tp_desativar()
 end
 
--- =====================================================
--- 🎮 INPUT
--- =====================================================
-UIS.InputBegan:Connect(function(input, g)
-	if g then return end
+-- LOOP SIMPLES (NÃO QUEBRA NADA)
+RunService.RenderStepped:Connect(function()
 
-	-- TELEPORT ATIVAR
-	if input.KeyCode == Enum.KeyCode.One then
-		tp_ativo = true
+	if not tp_ativo then return end
+
+	-- selecionar alvo
+	local alvo = tp_getAlvo()
+
+	if alvo ~= tp_alvo then
+		tp_alvo = alvo
+		tp_setHighlight(alvo)
 	end
 
-	-- DOUBLE SHIFT (SUPER PULO)
-	if input.KeyCode == Enum.KeyCode.LeftShift then
-		local tempo = tick()
-		if tempo - ultimoShift <= TEMPO_DOUBLE then
-			superPuloAtivo = not superPuloAtivo
-		end
-		ultimoShift = tempo
+	-- detectar clique
+	if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+	and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
 		
-		speed = _G.FLY_SHIFT_SPEED
-	end
-end)
-
-UIS.InputEnded:Connect(function(input)
-	if input.KeyCode == Enum.KeyCode.LeftShift then
-		speed = _G.FLY_NORMAL_SPEED
-	end
-end)
-
--- =====================================================
--- 🔁 LOOP PRINCIPAL (SEM CONFLITO)
--- =====================================================
-RunService:BindToRenderStep("MAIN_SYSTEM", Enum.RenderPriority.Camera.Value + 2, function()
-
-	-- =====================
-	-- TELEPORT LOOP
-	-- =====================
-	if tp_ativo then
-		
-		local alvo = tp_getAlvo()
-		
-		if alvo ~= tp_alvo then
-			tp_alvo = alvo
-			tp_setHighlight(alvo)
-		end
-		
-		-- detecta clique simultâneo REAL
-		if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-		and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-			
-			tp_teleportar()
-		end
+		tp_teleportar()
 	end
 
 end)
