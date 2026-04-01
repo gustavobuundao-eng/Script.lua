@@ -1,8 +1,8 @@
 -- =========================
 -- PROTEÇÃO GLOBAL
 -- =========================
-if _G.SCRIPT_UNIFICADO then return end
-_G.SCRIPT_UNIFICADO = true
+if _G.MAIN_SCRIPT_ATIVO then return end
+_G.MAIN_SCRIPT_ATIVO = true
 
 -- =========================
 -- SERVIÇOS
