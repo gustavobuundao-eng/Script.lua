@@ -10,8 +10,6 @@ _G.SCRIPT_UNIFICADO = true
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
@@ -20,13 +18,9 @@ local Camera = workspace.CurrentCamera
 -- ⚙️ CONFIG
 -- =====================================================
 local FLY_KEY = Enum.KeyCode.PageDown
-local INVIS_KEY = Enum.KeyCode.LeftControl
 
 _G.FLY_NORMAL_SPEED = 150
 _G.FLY_SHIFT_SPEED = 1289
-
-local TP_FOV = 12
-local TP_DISTANCIA = 5
 
 local TEMPO_DOUBLE = 0.3
 
@@ -38,11 +32,6 @@ local speed = _G.FLY_NORMAL_SPEED
 
 local superPuloAtivo = false
 local ultimoShift = 0
-
--- TELEPORT
-local tp_ativo = false
-local tp_alvo = nil
-local tp_highlight = nil
 
 -- =====================================================
 -- 🔧 BASE
@@ -82,98 +71,16 @@ local function startFly()
 end
 
 -- =====================================================
--- 🎯 TARGET
--- =====================================================
-local function tp_getAlvo()
-	local melhor = nil
-	local menorAngulo = TP_FOV
-
-	for _, plr in pairs(Players:GetPlayers()) do
-		if plr ~= LocalPlayer and plr.Character then
-			
-			local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-			local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-			
-			if hrp and hum and hum.Health > 0 then
-				
-				local dir = (hrp.Position - Camera.CFrame.Position).Unit
-				local dot = Camera.CFrame.LookVector:Dot(dir)
-				dot = math.clamp(dot, -1, 1)
-				
-				local ang = math.deg(math.acos(dot))
-				
-				if ang < menorAngulo then
-					menorAngulo = ang
-					melhor = plr
-				end
-			end
-		end
-	end
-
-	return melhor
-end
-
--- =====================================================
--- 🟥 HIGHLIGHT
--- =====================================================
-local function tp_setHighlight(plr)
-	if tp_highlight then tp_highlight:Destroy() end
-	
-	if not plr or not plr.Character then return end
-	
-	tp_highlight = Instance.new("Highlight")
-	tp_highlight.Adornee = plr.Character
-	tp_highlight.FillColor = Color3.fromRGB(255,0,0)
-	tp_highlight.FillTransparency = 0.4
-	tp_highlight.OutlineTransparency = 0
-	tp_highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-	tp_highlight.Parent = workspace
-end
-
-local function tp_clear()
-	if tp_highlight then
-		tp_highlight:Destroy()
-		tp_highlight = nil
-	end
-	tp_ativo = false
-	tp_alvo = nil
-end
-
--- =====================================================
--- ⚡ TELEPORT
--- =====================================================
-local function tp_teleportar()
-	if not tp_alvo or not tp_alvo.Character then return end
-	
-	local hrp = getHRP()
-	local targetHRP = tp_alvo.Character:FindFirstChild("HumanoidRootPart")
-	
-	if not hrp or not targetHRP then return end
-	
-	local look = targetHRP.CFrame.LookVector
-	local pos = targetHRP.Position - (look * TP_DISTANCIA)
-	
-	hrp.CFrame = CFrame.new(pos, targetHRP.Position)
-
-	-- desativa depois de usar
-	tp_clear()
-end
-
--- =====================================================
 -- 🎮 INPUT
 -- =====================================================
 UIS.InputBegan:Connect(function(input, g)
 	if g then return end
 
-	-- ATIVAR TELEPORT
-	if input.KeyCode == Enum.KeyCode.One then
-		tp_ativo = true
-	end
-
-	-- EXECUTAR TELEPORT
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		if tp_ativo and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-			tp_teleportar()
+	-- FLY TOGGLE
+	if input.KeyCode == FLY_KEY then
+		flying = not flying
+		if flying then
+			startFly()
 		end
 	end
 
@@ -187,34 +94,10 @@ UIS.InputBegan:Connect(function(input, g)
 		
 		speed = _G.FLY_SHIFT_SPEED
 	end
-
-	-- FLY TOGGLE
-	if input.KeyCode == FLY_KEY then
-		flying = not flying
-		if flying then
-			startFly()
-		end
-	end
 end)
 
 UIS.InputEnded:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.LeftShift then
 		speed = _G.FLY_NORMAL_SPEED
 	end
-end)
-
--- =====================================================
--- 🔁 LOOP PRINCIPAL
--- =====================================================
-RunService.RenderStepped:Connect(function()
-
-	if tp_ativo then
-		local alvo = tp_getAlvo()
-		
-		if alvo ~= tp_alvo then
-			tp_alvo = alvo
-			tp_setHighlight(alvo)
-		end
-	end
-
 end)
