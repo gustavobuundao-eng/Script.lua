@@ -1,5 +1,5 @@
 -- =====================================================
--- 🔒 PROTEÇÃO GLOBAL (evita duplicar script)
+-- 🔒 PROTEÇÃO GLOBAL
 -- =====================================================
 if _G.SCRIPT_UNIFICADO then return end
 _G.SCRIPT_UNIFICADO = true
@@ -17,50 +17,35 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -- =====================================================
--- ⚙️ CONFIGURAÇÕES
+-- ⚙️ CONFIG
 -- =====================================================
-
--- teclas
 local FLY_KEY = Enum.KeyCode.PageDown
 local INVIS_KEY = Enum.KeyCode.LeftControl
 
--- velocidade fly
 _G.FLY_NORMAL_SPEED = 150
 _G.FLY_SHIFT_SPEED = 1289
 
--- ESP
-local ESP_ON = true
-
--- invis
-local seatDistance = 50000000
-local seatHeight = 50000000
-local seatX = -25.95
-
--- pulo
-local alturaPrimeiroPulo = 120
-
--- teleport
 local TP_FOV = 12
 local TP_DISTANCIA = 5
+
+local TEMPO_DOUBLE = 0.3
 
 -- =====================================================
 -- 📊 ESTADOS
 -- =====================================================
 local flying = false
-local invis = false
 local speed = _G.FLY_NORMAL_SPEED
 
 local superPuloAtivo = false
 local ultimoShift = 0
-local TEMPO_DOUBLE = 0.3
 
--- teleport
+-- TELEPORT
 local tp_ativo = false
 local tp_alvo = nil
 local tp_highlight = nil
 
 -- =====================================================
--- 🔧 FUNÇÕES BASE
+-- 🔧 BASE
 -- =====================================================
 local function getHRP()
 	return (LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()):WaitForChild("HumanoidRootPart")
@@ -97,10 +82,8 @@ local function startFly()
 end
 
 -- =====================================================
--- 🟥 TELEPORT SYSTEM (PARTE IMPORTANTE)
+-- 🎯 TARGET
 -- =====================================================
-
--- encontrar alvo pela mira
 local function tp_getAlvo()
 	local melhor = nil
 	local menorAngulo = TP_FOV
@@ -130,7 +113,9 @@ local function tp_getAlvo()
 	return melhor
 end
 
--- highlight
+-- =====================================================
+-- 🟥 HIGHLIGHT
+-- =====================================================
 local function tp_setHighlight(plr)
 	if tp_highlight then tp_highlight:Destroy() end
 	
@@ -145,18 +130,18 @@ local function tp_setHighlight(plr)
 	tp_highlight.Parent = workspace
 end
 
--- desativar sistema
-local function tp_desativar()
-	tp_ativo = false
-	tp_alvo = nil
-	
+local function tp_clear()
 	if tp_highlight then
 		tp_highlight:Destroy()
 		tp_highlight = nil
 	end
+	tp_ativo = false
+	tp_alvo = nil
 end
 
--- teleporte atrás
+-- =====================================================
+-- ⚡ TELEPORT
+-- =====================================================
 local function tp_teleportar()
 	if not tp_alvo or not tp_alvo.Character then return end
 	
@@ -169,9 +154,9 @@ local function tp_teleportar()
 	local pos = targetHRP.Position - (look * TP_DISTANCIA)
 	
 	hrp.CFrame = CFrame.new(pos, targetHRP.Position)
-	
-	-- one shot
-	tp_desativar()
+
+	-- desativa depois de usar
+	tp_clear()
 end
 
 -- =====================================================
@@ -180,12 +165,19 @@ end
 UIS.InputBegan:Connect(function(input, g)
 	if g then return end
 
-	-- TELEPORT ATIVAR
+	-- ATIVAR TELEPORT
 	if input.KeyCode == Enum.KeyCode.One then
 		tp_ativo = true
 	end
 
-	-- DOUBLE SHIFT (SUPER PULO)
+	-- EXECUTAR TELEPORT
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if tp_ativo and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+			tp_teleportar()
+		end
+	end
+
+	-- SHIFT SPEED + DOUBLE SHIFT
 	if input.KeyCode == Enum.KeyCode.LeftShift then
 		local tempo = tick()
 		if tempo - ultimoShift <= TEMPO_DOUBLE then
@@ -194,6 +186,14 @@ UIS.InputBegan:Connect(function(input, g)
 		ultimoShift = tempo
 		
 		speed = _G.FLY_SHIFT_SPEED
+	end
+
+	-- FLY TOGGLE
+	if input.KeyCode == FLY_KEY then
+		flying = not flying
+		if flying then
+			startFly()
+		end
 	end
 end)
 
@@ -204,26 +204,16 @@ UIS.InputEnded:Connect(function(input)
 end)
 
 -- =====================================================
--- 🔁 LOOP PRINCIPAL (FIXADO)
+-- 🔁 LOOP PRINCIPAL
 -- =====================================================
 RunService.RenderStepped:Connect(function()
 
-	-- =====================
-	-- TELEPORT LOOP
-	-- =====================
 	if tp_ativo then
-		
 		local alvo = tp_getAlvo()
 		
 		if alvo ~= tp_alvo then
 			tp_alvo = alvo
 			tp_setHighlight(alvo)
-		end
-		
-		if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-		and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-			
-			tp_teleportar()
 		end
 	end
 
