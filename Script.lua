@@ -1,5 +1,5 @@
 -- =====================================================
--- 🔒 PROTEÇÃO GLOBAL
+-- 🔒 PROTEÇÃO GLOBAL (evita duplicar script)
 -- =====================================================
 if _G.SCRIPT_UNIFICADO then return end
 _G.SCRIPT_UNIFICADO = true
@@ -10,33 +10,54 @@ _G.SCRIPT_UNIFICADO = true
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -- =====================================================
--- ⚙️ CONFIG
+-- ⚙️ CONFIGURAÇÕES
 -- =====================================================
+
+-- teclas
+local FLY_KEY = Enum.KeyCode.PageDown
+local INVIS_KEY = Enum.KeyCode.LeftControl
+
+-- velocidade fly
+_G.FLY_NORMAL_SPEED = 150
+_G.FLY_SHIFT_SPEED = 1289
+
+-- ESP
+local ESP_ON = true
+
+-- invis
+local seatDistance = 50000000
+local seatHeight = 50000000
+local seatX = -25.95
+
+-- pulo
+local alturaPrimeiroPulo = 120
+
+-- teleport
 local TP_FOV = 12
 local TP_DISTANCIA = 5
-
-local FLY_SPEED_NORMAL = 150
-local FLY_SPEED_SHIFT = 1200
 
 -- =====================================================
 -- 📊 ESTADOS
 -- =====================================================
+local flying = false
+local invis = false
+local speed = _G.FLY_NORMAL_SPEED
+
+local superPuloAtivo = false
+local ultimoShift = 0
+local TEMPO_DOUBLE = 0.3
+
+-- teleport
 local tp_ativo = false
 local tp_alvo = nil
 local tp_highlight = nil
-local tp_click = false
-
-local flying = false
-local speed = FLY_SPEED_NORMAL
-
-local aiming = false
-local aim_target = nil
 
 -- =====================================================
 -- 🔧 FUNÇÕES BASE
@@ -46,11 +67,43 @@ local function getHRP()
 end
 
 -- =====================================================
--- 🎯 TARGET (usado por TP e AIM)
+-- ✈️ FLY
 -- =====================================================
-local function getTarget(fov)
+local function startFly()
+	local root = getHRP()
+
+	local gyro = Instance.new("BodyGyro", root)
+	gyro.MaxTorque = Vector3.new(9e9,9e9,9e9)
+
+	local vel = Instance.new("BodyVelocity", root)
+	vel.MaxForce = Vector3.new(9e9,9e9,9e9)
+
+	RunService.RenderStepped:Connect(function()
+		if not flying then return end
+		
+		local cam = Camera
+		local move = Vector3.zero
+		
+		if UIS:IsKeyDown(Enum.KeyCode.W) then move += cam.CFrame.LookVector end
+		if UIS:IsKeyDown(Enum.KeyCode.S) then move -= cam.CFrame.LookVector end
+		if UIS:IsKeyDown(Enum.KeyCode.A) then move -= cam.CFrame.RightVector end
+		if UIS:IsKeyDown(Enum.KeyCode.D) then move += cam.CFrame.RightVector end
+		
+		if move.Magnitude > 0 then move = move.Unit end
+		
+		vel.Velocity = move * speed
+		gyro.CFrame = cam.CFrame
+	end)
+end
+
+-- =====================================================
+-- 🟥 TELEPORT SYSTEM (PARTE IMPORTANTE)
+-- =====================================================
+
+-- encontrar alvo pela mira
+local function tp_getAlvo()
 	local melhor = nil
-	local menor = fov
+	local menorAngulo = TP_FOV
 
 	for _, plr in pairs(Players:GetPlayers()) do
 		if plr ~= LocalPlayer and plr.Character then
@@ -66,8 +119,8 @@ local function getTarget(fov)
 				
 				local ang = math.deg(math.acos(dot))
 				
-				if ang < menor then
-					menor = ang
+				if ang < menorAngulo then
+					menorAngulo = ang
 					melhor = plr
 				end
 			end
@@ -77,10 +130,8 @@ local function getTarget(fov)
 	return melhor
 end
 
--- =====================================================
--- 🟥 HIGHLIGHT
--- =====================================================
-local function setHighlight(plr)
+-- highlight
+local function tp_setHighlight(plr)
 	if tp_highlight then tp_highlight:Destroy() end
 	
 	if not plr or not plr.Character then return end
@@ -94,17 +145,19 @@ local function setHighlight(plr)
 	tp_highlight.Parent = workspace
 end
 
-local function clearHighlight()
+-- desativar sistema
+local function tp_desativar()
+	tp_ativo = false
+	tp_alvo = nil
+	
 	if tp_highlight then
 		tp_highlight:Destroy()
 		tp_highlight = nil
 	end
 end
 
--- =====================================================
--- ⚡ TELEPORT
--- =====================================================
-local function teleportBehind()
+-- teleporte atrás
+local function tp_teleportar()
 	if not tp_alvo or not tp_alvo.Character then return end
 	
 	local hrp = getHRP()
@@ -117,48 +170,12 @@ local function teleportBehind()
 	
 	hrp.CFrame = CFrame.new(pos, targetHRP.Position)
 	
-	-- reset
-	tp_ativo = false
-	tp_alvo = nil
-	tp_click = false
-	clearHighlight()
+	-- one shot
+	tp_desativar()
 end
 
 -- =====================================================
--- ✈️ FLY
--- =====================================================
-local function updateFly()
-	if not flying then return end
-	
-	local root = getHRP()
-	local cam = Camera
-	
-	local move = Vector3.zero
-	
-	if UIS:IsKeyDown(Enum.KeyCode.W) then move += cam.CFrame.LookVector end
-	if UIS:IsKeyDown(Enum.KeyCode.S) then move -= cam.CFrame.LookVector end
-	if UIS:IsKeyDown(Enum.KeyCode.A) then move -= cam.CFrame.RightVector end
-	if UIS:IsKeyDown(Enum.KeyCode.D) then move += cam.CFrame.RightVector end
-	
-	if move.Magnitude > 0 then move = move.Unit end
-	
-	root.Velocity = move * speed
-end
-
--- =====================================================
--- 🎯 AIMBOT SIMPLES
--- =====================================================
-local function updateAim()
-	if not aiming or not aim_target then return end
-	
-	local hrp = aim_target.Character and aim_target.Character:FindFirstChild("HumanoidRootPart")
-	if not hrp then return end
-	
-	Camera.CFrame = CFrame.new(Camera.CFrame.Position, hrp.Position)
-end
-
--- =====================================================
--- 🎮 INPUT ÚNICO
+-- 🎮 INPUT
 -- =====================================================
 UIS.InputBegan:Connect(function(input, g)
 	if g then return end
@@ -168,67 +185,47 @@ UIS.InputBegan:Connect(function(input, g)
 		tp_ativo = true
 	end
 
-	-- CLIQUE TELEPORT
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-			tp_click = true
-		end
-	end
-
-	-- AIMBOT (segurar botão direito)
-	if input.UserInputType == Enum.UserInputType.MouseButton2 then
-		local target = getTarget(15)
-		if target then
-			aiming = true
-			aim_target = target
-		end
-	end
-
-	-- FLY
-	if input.KeyCode == Enum.KeyCode.PageDown then
-		flying = not flying
-	end
-
-	-- SHIFT SPEED
+	-- DOUBLE SHIFT (SUPER PULO)
 	if input.KeyCode == Enum.KeyCode.LeftShift then
-		speed = FLY_SPEED_SHIFT
+		local tempo = tick()
+		if tempo - ultimoShift <= TEMPO_DOUBLE then
+			superPuloAtivo = not superPuloAtivo
+		end
+		ultimoShift = tempo
+		
+		speed = _G.FLY_SHIFT_SPEED
 	end
 end)
 
 UIS.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton2 then
-		aiming = false
-		aim_target = nil
-	end
-
 	if input.KeyCode == Enum.KeyCode.LeftShift then
-		speed = FLY_SPEED_NORMAL
+		speed = _G.FLY_NORMAL_SPEED
 	end
 end)
 
 -- =====================================================
--- 🔁 LOOP ÚNICO
+-- 🔁 LOOP PRINCIPAL (SEM CONFLITO)
 -- =====================================================
-RunService.RenderStepped:Connect(function()
+RunService:BindToRenderStep("MAIN_SYSTEM", Enum.RenderPriority.Camera.Value + 2, function()
 
-	-- TELEPORT
+	-- =====================
+	-- TELEPORT LOOP
+	-- =====================
 	if tp_ativo then
-		local alvo = getTarget(TP_FOV)
+		
+		local alvo = tp_getAlvo()
 		
 		if alvo ~= tp_alvo then
 			tp_alvo = alvo
-			setHighlight(alvo)
+			tp_setHighlight(alvo)
 		end
 		
-		if tp_click then
-			teleportBehind()
+		-- detecta clique simultâneo REAL
+		if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+		and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+			
+			tp_teleportar()
 		end
 	end
-
-	-- FLY
-	updateFly()
-
-	-- AIM
-	updateAim()
 
 end)
