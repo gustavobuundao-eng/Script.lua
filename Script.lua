@@ -364,10 +364,6 @@ UIS.InputEnded:Connect(function(i)
 	end
 end)
 
--- evita duplicação
-if _G.AIM_PREDICT_ATIVO then return end
-_G.AIM_PREDICT_ATIVO = true
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
