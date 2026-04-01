@@ -204,9 +204,9 @@ UIS.InputEnded:Connect(function(input)
 end)
 
 -- =====================================================
--- 🔁 LOOP PRINCIPAL (SEM CONFLITO)
+-- 🔁 LOOP PRINCIPAL (FIXADO)
 -- =====================================================
-RunService:BindToRenderStep("MAIN_SYSTEM", Enum.RenderPriority.Camera.Value + 2, function()
+RunService.RenderStepped:Connect(function()
 
 	-- =====================
 	-- TELEPORT LOOP
@@ -220,7 +220,6 @@ RunService:BindToRenderStep("MAIN_SYSTEM", Enum.RenderPriority.Camera.Value + 2,
 			tp_setHighlight(alvo)
 		end
 		
-		-- detecta clique simultâneo REAL
 		if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 		and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
 			
